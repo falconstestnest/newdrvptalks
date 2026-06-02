@@ -1,0 +1,60 @@
+{
+  "entities": {
+    "Reservation": {
+      "title": "Reservation",
+      "description": "Program reservation inquiry details registered by incoming patients.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Patient full name"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Patient contact email address"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Patient contact phone number"
+        },
+        "programId": {
+          "type": "string",
+          "description": "Identifier of target 90-day protocol"
+        },
+        "preferredDate": {
+          "type": "string",
+          "description": "Proposed date for introductory program triage consultation"
+        },
+        "preferredTime": {
+          "type": "string",
+          "description": "Proposed booking time window"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Patient descriptions of symptoms & medical history"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp of the reservation"
+        }
+      },
+      "required": [
+        "name",
+        "email",
+        "phone",
+        "programId",
+        "preferredDate",
+        "preferredTime",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/reservations/{reservationId}": {
+      "schema": "Reservation",
+      "description": "Submissions container for patient program requests"
+    }
+  }
+}

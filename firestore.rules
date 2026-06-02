@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny catch-all safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reuseable global helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && 
+             request.auth.token.email == "jimmymanalel@gmail.com" && 
+             request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Reservation validation check
+    function isValidReservation(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.email is string && data.email.size() > 0 && data.email.size() <= 150 &&
+             data.phone is string && data.phone.size() > 0 && data.phone.size() <= 30 &&
+             data.programId is string && data.programId.size() > 0 && data.programId.size() <= 50 &&
+             data.preferredDate is string && data.preferredDate.size() > 0 && data.preferredDate.size() <= 30 &&
+             data.preferredTime is string && data.preferredTime.size() > 0 && data.preferredTime.size() <= 30 &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000)) &&
+             data.createdAt == request.time;
+    }
+
+    // Main reservations collection securing
+    match /reservations/{reservationId} {
+      
+      // Allow creation publicly (any visitor can inquire about a program reservation)
+      allow create: if isValidId(reservationId) && 
+                       isValidReservation(request.resource.data) &&
+                       request.resource.data.keys().hasAll([
+                         'name', 'email', 'phone', 'programId', 'preferredDate', 'preferredTime', 'createdAt'
+                       ]) && 
+                       (
+                         request.resource.data.keys().size() == 7 || 
+                         (request.resource.data.keys().size() == 8 && 'notes' in request.resource.data)
+                       );
+
+      // Only designated administrator can retrieve, edit or delete patient collections
+      allow read, update, delete: if isAdmin();
+    }
+  }
+}

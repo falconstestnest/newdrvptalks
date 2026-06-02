@@ -1,0 +1,6 @@
+{
+  "name": "Dr. Vishnupriya - Wellness Guide",
+  "description": "Personalized health counseling, 90-day reversal programs, Ayurvedic Prakriti analysis, and interactive assessments.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
