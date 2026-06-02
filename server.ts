@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import nodemailer from "nodemailer";
 
 dotenv.config();
 
@@ -195,6 +196,199 @@ app.get("/api/programs", (req, res) => {
       pillars: ["Androgen-lowering foods", "Inositol and mineral foods", "Sympathetic nervous system calming", "Gentle cyclical movement"]
     }
   ]);
+});
+
+// Program Translation Helper
+function getProgramTitle(programId: string): string {
+  const programs: Record<string, string> = {
+    diabetes: "90-Day Diabetes Care Program",
+    liver: "90-Day Liver Health & Reversal",
+    weight: "90-Day Specialized Weight Management",
+    thyroid: "90-Day Hypothyroidism Support Program",
+    pcos: "90-Day PCOS Reversal Program"
+  };
+  return programs[programId] || "Comprehensive Lifestyle Program";
+}
+
+// Route to handle sending emails upon program reservation
+app.post("/api/reservations/notify", async (req, res) => {
+  try {
+    const { name, email, phone, programId, preferredDate, preferredTime, notes } = req.body;
+    
+    if (!name || !email || !phone || !programId || !preferredDate) {
+      return res.status(400).json({ error: "Missing required reservation details for sending emails." });
+    }
+
+    const programTitle = getProgramTitle(programId);
+    const adminEmail = process.env.ADMIN_EMAIL || "jimmymanalel@gmail.com";
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+    const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
+    const smtpPort = parseInt(process.env.SMTP_PORT || "465", 10);
+    const smtpFrom = process.env.SMTP_FROM || `Dr. VP Health Portal <${smtpUser || "no-reply@dr-vp-talks.com"}>`;
+
+    // Patient email HTML markup
+    const patientHtml = `
+      <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #fcfbfa; padding: 40px 20px; color: #1c2d24; max-width: 600px; margin: 0 auto; border: 1px solid #eae7e2; border-radius: 8px;">
+        <div style="text-align: center; margin-bottom: 30px; border-bottom: 1px solid #eae7e2; padding-bottom: 20px;">
+          <h1 style="color: #405f4c; font-size: 24px; font-weight: normal; margin: 0 0 10px 0; font-family: Georgia, serif; font-style: italic;">Dr. Vishnupriya's Health Portal</h1>
+          <p style="font-size: 13px; color: #768175; margin: 0; text-transform: uppercase; letter-spacing: 2px;">Lifestyle & Ayurvedic Coaching</p>
+        </div>
+        
+        <div style="line-height: 1.6; font-size: 15px; color: #333d37; margin-bottom: 35px;">
+          <p>Dear <strong>${name}</strong>,</p>
+          <p>Thank you for inquiring about a reservation for our <strong>${programTitle}</strong>. We are delighted to assist you on your journey toward restorative health.</p>
+          <p>Dr. Vishnupriya and our coaching team have received your request. We will review your files and touch base within 24–48 operating hours to finalize your introductory consultation space.</p>
+          
+          <h2 style="font-family: Georgia, serif; font-size: 18px; color: #405f4c; font-weight: normal; border-bottom: 1px solid #f0eee9; padding-bottom: 8px; margin-top: 30px;">Your Reservation Summary</h2>
+          <table style="width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px;">
+            <tr>
+              <td style="padding: 10px 0; font-weight: bold; color: #405f4c; width: 160px; border-bottom: 1px solid #f0eee9;">Program Select:</td>
+              <td style="padding: 10px 0; color: #555; border-bottom: 1px solid #f0eee9;">${programTitle}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0; font-weight: bold; color: #405f4c; border-bottom: 1px solid #f0eee9;">Preferred Date:</td>
+              <td style="padding: 10px 0; color: #555; border-bottom: 1px solid #f0eee9;">${preferredDate}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0; font-weight: bold; color: #405f4c; border-bottom: 1px solid #f0eee9;">Preferred Time:</td>
+              <td style="padding: 10px 0; color: #555; border-bottom: 1px solid #f0eee9;">${preferredTime}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0; font-weight: bold; color: #405f4c; border-bottom: 1px solid #f0eee9;">Contact Phone:</td>
+              <td style="padding: 10px 0; color: #555; border-bottom: 1px solid #f0eee9;">${phone}</td>
+            </tr>
+            ${notes?.trim() ? `
+            <tr>
+              <td style="vertical-align: top; padding: 10px 0; font-weight: bold; color: #405f4c; border-bottom: 1px solid #f0eee9;">Health Notes:</td>
+              <td style="padding: 10px 0; color: #555; border-bottom: 1px solid #f0eee9; line-height: 1.5; font-style: italic;">${notes}</td>
+            </tr>
+            ` : ''}
+          </table>
+          
+          <div style="background-color: #f3f6f4; border-left: 4px solid #405f4c; padding: 15px; margin-top: 30px; border-radius: 4px; font-size: 13.5px; color: #4a544f;">
+            <strong>Next Steps:</strong> Please monitor your inbox or phone lines. One of our health guides will contact you to schedule the initial Ayurvedic assessment and align your 90-day protocol elements.
+          </div>
+        </div>
+        
+        <div style="text-align: center; border-top: 1px solid #eae7e2; padding-top: 25px; margin-top: 35px; font-size: 12px; color: #8e958d; line-height: 1.5;">
+          <p style="margin: 0 0 5px 0;"><strong>Dr. Vishnupriya's Lifestyle Reversal Clinics</strong></p>
+          <p style="margin: 0 0 15px 0;">Kerala, India — The Land of Ayurvedic Healing</p>
+          <p style="font-style: italic; font-size: 11px; margin: 0;">This is an automatically generated receipt of your reservation inquiry. Medical suggestions are only validated upon personal consult.</p>
+        </div>
+      </div>
+    `;
+
+    // Admin email HTML markup
+    const adminHtml = `
+      <div style="font-family: Arial, sans-serif; background-color: #f7faf8; padding: 30px; color: #2C3531; max-width: 600px; margin: 0 auto; border: 1px solid #ddece6; border-radius: 6px;">
+        <div style="padding-bottom: 15px; border-bottom: 2px solid #a6cfbe; margin-bottom: 20px;">
+          <h1 style="color: #2e5944; font-size: 20px; font-weight: bold; margin: 0;">[New Inquiry] 90-Day Program Reservation</h1>
+          <p style="margin: 5px 0 0 0; font-size: 13px; color: #666;">A new client booking has been registered on the website.</p>
+        </div>
+        
+        <p style="font-size: 15px;">A request for 90-day lifestyle program reservation was submitted with active details:</p>
+        
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px;">
+          <tr style="background-color: #eef5f2;">
+            <th style="padding: 10px; border: 1px solid #d6ebd9; text-align: left; width: 140px;">Field</th>
+            <th style="padding: 10px; border: 1px solid #d6ebd9; text-align: left;">Client Submission Details</th>
+          </tr>
+          <tr>
+            <td style="padding: 10px; border: 1px solid #d6ebd9; font-weight: bold;">Client Name:</td>
+            <td style="padding: 10px; border: 1px solid #d6ebd9;">${name}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px; border: 1px solid #d6ebd9; font-weight: bold;">Client Email:</td>
+            <td style="padding: 10px; border: 1px solid #d6ebd9;"><a href="mailto:${email}" style="color: #2e5944; text-decoration: underline;">${email}</a></td>
+          </tr>
+          <tr>
+            <td style="padding: 10px; border: 1px solid #d6ebd9; font-weight: bold;">Client Phone:</td>
+            <td style="padding: 10px; border: 1px solid #d6ebd9;"><a href="tel:${phone}" style="color: #2e5944; text-decoration: underline;">${phone}</a></td>
+          </tr>
+          <tr>
+            <td style="padding: 10px; border: 1px solid #d6ebd9; font-weight: bold;">Target Program:</td>
+            <td style="padding: 10px; border: 1px solid #d6ebd9; font-weight: bold; color: #2e5944;">${programTitle} (ID: ${programId})</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px; border: 1px solid #d6ebd9; font-weight: bold;">Proposed Date:</td>
+            <td style="padding: 10px; border: 1px solid #d6ebd9;">${preferredDate}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px; border: 1px solid #d6ebd9; font-weight: bold;">Proposed Time:</td>
+            <td style="padding: 10px; border: 1px solid #d6ebd9;">${preferredTime}</td>
+          </tr>
+          ${notes?.trim() ? `
+          <tr>
+            <td style="padding: 10px; border: 1px solid #d6ebd9; font-weight: bold; vertical-align: top;">Health History:</td>
+            <td style="padding: 10px; border: 1px solid #d6ebd9; white-space: pre-line; line-height: 1.5; color: #444;">${notes}</td>
+          </tr>
+          ` : ''}
+        </table>
+        
+        <div style="margin-top: 25px; padding: 15px; background-color: #fffde6; border-left: 4px solid #ccbc25; font-size: 13px; border-radius: 4px;">
+          <strong>Action Required:</strong> Please contact the patient at their preferred email <strong>${email}</strong> or key in an assessment call at <strong>${phone}</strong> within 1 business day.
+        </div>
+      </div>
+    `;
+
+    // Check if SMTP configuration is established
+    if (smtpUser && smtpPass) {
+      // Build transporter
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465, // true for 465, false for other ports
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
+        },
+      });
+
+      // Send to patient
+      await transporter.sendMail({
+        from: smtpFrom,
+        to: email,
+        subject: `Program Reservation Received - Dr. VP Lifestyle Programs`,
+        html: patientHtml,
+      });
+
+      // Send to admin
+      await transporter.sendMail({
+        from: smtpFrom,
+        to: adminEmail,
+        subject: `[New Reservation Inquiry] ${name} - ${programTitle}`,
+        html: adminHtml,
+      });
+
+      return res.json({
+        success: true,
+        smtpConfigured: true,
+        message: "Reservation receipt and administrative emails have been dispatched successfully via configured SMTP."
+      });
+    } else {
+      // SMTP not configured - Perform high-clarity log simulation
+      console.log("\n================[ RESERVATION NOTIFICATION SIMULATOR ]================\n");
+      console.log(`To configure real delivery, set SMTP_USER, SMTP_PASS, and optionally SMTP_HOST, SMTP_PORT, SMTP_FROM, ADMIN_EMAIL in your active Environment Settings.`);
+      console.log(`\n--- TO PATIENT: ${email} ---`);
+      console.log(`Subject: Program Reservation Received - Dr. VP Lifestyle Programs`);
+      console.log(`[HTML Notification Generated Successfully. Render size: ${patientHtml.length} characters]`);
+      console.log(`\n--- TO ADMIN: ${adminEmail} ---`);
+      console.log(`Subject: [New Reservation Inquiry] ${name} - ${programTitle}`);
+      console.log(`[HTML Notification Generated Successfully. Render size: ${adminHtml.length} characters]`);
+      console.log("\n======================================================================\n");
+
+      return res.json({
+        success: true,
+        smtpConfigured: false,
+        message: "Reservation printed successfully to backend server logs. To dispatch live emails, set environmental credentials inside Secrets."
+      });
+    }
+
+  } catch (err: any) {
+    console.error("Email Notification Route Error:", err);
+    res.status(500).json({ error: err.message || "An error occurred while routing notifications." });
+  }
 });
 
 // Encapsulate server start inside async block to resolve bundler target formats

@@ -118,6 +118,27 @@ export default function App() {
         createdAt: serverTimestamp(),
       });
       
+      // Dispatch notification emails to patient and admin via backend server API route
+      try {
+        await fetch("/api/reservations/notify", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: booking.name.trim(),
+            email: booking.email.trim(),
+            phone: booking.phone.trim(),
+            programId: booking.programId,
+            preferredDate: booking.preferredDate,
+            preferredTime: booking.preferredTime || "10:00",
+            notes: booking.notes?.trim() || "",
+          }),
+        });
+      } catch (notifyErr) {
+        console.warn("Dispatched email notification endpoint failed (non-blocking):", notifyErr);
+      }
+      
       setIsSubmittingBooking(false);
       setBookingConfirmed(true);
     } catch (err: any) {
