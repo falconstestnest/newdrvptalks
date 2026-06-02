@@ -391,6 +391,28 @@ app.post("/api/reservations/notify", async (req, res) => {
   }
 });
 
+// SEO & Search Crawler Discovery Routes
+app.get("/sitemap.xml", (req, res) => {
+  res.header("Content-Type", "application/xml");
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://new.drvptalks.com/</loc>
+    <lastmod>2026-06-02</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>`);
+});
+
+app.get("/robots.txt", (req, res) => {
+  res.header("Content-Type", "text/plain");
+  res.send(`User-agent: *
+Allow: /
+
+Sitemap: https://new.drvptalks.com/sitemap.xml`);
+});
+
 // Encapsulate server start inside async block to resolve bundler target formats
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
