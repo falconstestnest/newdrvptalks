@@ -5,7 +5,7 @@ import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import nodemailer from "nodemailer";
 
-dotenv.config();
+dotenv.config({ override: true });
 
 const app = express();
 app.use(express.json());
@@ -334,38 +334,58 @@ app.post("/api/reservations/notify", async (req, res) => {
 
     // Check if SMTP configuration is established
     if (smtpUser && smtpPass) {
-      // Build transporter
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpPort === 465, // true for 465, false for other ports
-        auth: {
-          user: smtpUser,
-          pass: smtpPass,
-        },
-      });
+      try {
+        // Build transporter with high-compatibility TLS and timeouts
+        const transporter = nodemailer.createTransport({
+          host: smtpHost,
+          port: smtpPort,
+          secure: smtpPort === 465, // true for 465, false for other ports
+          auth: {
+            user: smtpUser,
+            pass: smtpPass,
+          },
+          tls: {
+            rejectUnauthorized: false,
+            minVersion: "TLSv1.2"
+          },
+          connectionTimeout: 10000, // 10s connection timeout
+          greetingTimeout: 10000,
+          socketTimeout: 10000
+        });
 
-      // Send to patient
-      await transporter.sendMail({
-        from: smtpFrom,
-        to: email,
-        subject: `Program Reservation Received - Dr. VP Lifestyle Programs`,
-        html: patientHtml,
-      });
+        // Optional connection verify check
+        await transporter.verify();
 
-      // Send to admin
-      await transporter.sendMail({
-        from: smtpFrom,
-        to: adminEmail,
-        subject: `[New Reservation Inquiry] ${name} - ${programTitle}`,
-        html: adminHtml,
-      });
+        // Send to patient
+        await transporter.sendMail({
+          from: smtpFrom,
+          to: email,
+          subject: `Program Reservation Received - Dr. VP Lifestyle Programs`,
+          html: patientHtml,
+        });
 
-      return res.json({
-        success: true,
-        smtpConfigured: true,
-        message: "Reservation receipt and administrative emails have been dispatched successfully via configured SMTP."
-      });
+        // Send to admin
+        await transporter.sendMail({
+          from: smtpFrom,
+          to: adminEmail,
+          subject: `[New Reservation Inquiry] ${name} - ${programTitle}`,
+          html: adminHtml,
+        });
+
+        return res.json({
+          success: true,
+          smtpConfigured: true,
+          message: "Reservation receipt and administrative emails have been dispatched successfully via configured SMTP."
+        });
+      } catch (smtpErr: any) {
+        console.error("Nodemailer SMTP Dispatch Error:", smtpErr);
+        return res.json({
+          success: false,
+          smtpConfigured: true,
+          error: smtpErr.message || String(smtpErr),
+          message: "Reservation saved in database, but SMTP email delivery failed. This is usually due to authentication block, missing Zoho App Password or temporary port block."
+        });
+      }
     } else {
       // SMTP not configured - Perform high-clarity log simulation
       console.log("\n================[ RESERVATION NOTIFICATION SIMULATOR ]================\n");
